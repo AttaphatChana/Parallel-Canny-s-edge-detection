@@ -1,0 +1,1 @@
+# Parallel-Canny-s-edge-detection
