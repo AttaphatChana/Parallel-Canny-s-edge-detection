@@ -48,8 +48,8 @@ fn convol(img:&GrayImage, kernel:&[[i16;3]],x: u32,y:u32) -> u16{
     a.abs() as u16
 }
 
-const Quanz:f32 = PI.div(8f32);
-const Quanz2:f32 = PI.div(4f32);
+/*const Quanz:f32 = PI.div(8f32);
+const Quanz2:f32 = PI.div(4f32);*/
 fn quantized(zeta: f32) -> u8 {
     let thres = zeta.div(PI).round().div(45.0);
     if thres >= 0.0 {
@@ -102,12 +102,12 @@ fn quantized(zeta: f32) -> u8 {
     }else*/
 }
 
-fn get_image(dir: &str){
+fn get_image(dir: &str) -> GrayImage{
     let img = image::open(dir).unwrap().to_luma8();
     println!("{:?}", img.dimensions());
     let (width,height) = img.dimensions();
     let mut n_img: GrayImage = ImageBuffer::new(width-2,height-2);
-    let mut ang-img: GrayImage = ImageBuffer::new(width-2,height-2);
+    let mut ang_img: GrayImage = ImageBuffer::new(width-2,height-2);
     for x in 1..width-1{
         for y in 1..height-1{
             //print!("")
@@ -118,6 +118,7 @@ fn get_image(dir: &str){
             let pyth: u8 = (((value + value2)*25)/100) as u8;
             let angle = fast_math::atan2(value as f32, value2 as f32);
             let angle = quantized(angle);
+            *ang_img.get_pixel_mut(x-1, y-1) = image::Luma([angle]);
 
             *n_img.get_pixel_mut(x-1, y-1) = image::Luma([pyth]);
             //print!("({:?})",val);
@@ -149,6 +150,7 @@ fn get_image(dir: &str){
         }*/
     }*/
     n_img.save("output3.png").unwrap();
+    ang_img
 }
 
 
@@ -172,7 +174,8 @@ fn main() {
     //println!("{:?}",img);
     //get_image("../sample.jpg");*/
     
-    get_image("sample.png");
+    let angle = get_image("sample.png");
+    angle.save("phase").unwrap();
     println!("{}",SOBEL_H[1][2]);
 
 }
