@@ -2,7 +2,7 @@
 use std::{ f32::consts::PI, ops::Div, cmp};
 
 use image::{GenericImageView, DynamicImage, GenericImage,ImageBuffer,Rgb, Rgb32FImage, GrayImage};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::{iter::{IntoParallelIterator, ParallelIterator, ParallelBridge, IntoParallelRefIterator, IndexedParallelIterator}, slice::{ParallelSlice, ParallelSliceMut}};
 //use ndarray_image::{self, open_image};
 
 fn get_str_ascii(intent :u8)-> &'static str{
@@ -188,8 +188,99 @@ fn non_max_sup(sobeled: &mut GrayImage, phase: &mut GrayImage){
         }
     }
     sobeled.save("non_max2.png").unwrap();
+    //let so = sobeled;
+    let non_max = normalize(sobeled);
+    //println!("{:?}",non_max);
+    //println!("NEW");
+    thres(sobeled);
 
 }
+
+fn normalize(sobel: & GrayImage) -> Vec<f32>{
+    //let m = vec![1,3,3];
+    let a:Vec<u8> = sobel.par_iter().map(|p| *p).collect();
+    //println!("{:?}",a);
+    //println!("vectorize");
+    //let max = sobel.pixels().par_bridge().map(|p| p.0[0]).max().unwrap();
+    //let min = sobel.pixels().par_bridge().map(|p| p.0[0]).min().unwrap();
+    let min = sobel.par_iter().map(|p| *p).min().unwrap();
+    let max = sobel.par_iter().map(|p| *p).max().unwrap();
+    //println!("min ={}", min);
+    let change: Vec<f32>= sobel.par_chunks(10).flat_map(|p|{
+            //let d:Vec<u8>  = (*p).to_vec();
+            let fin:Vec<f32> = p.into_iter().map(|p2|{
+                let v = (*p2 - min) as f32;
+                let v = (v).div((max - min) as f32);
+                v
+            }).collect();
+            fin
+        }).collect();
+    /*let change:Vec<f32> = sobel.pixels().par_bridge().map(|p|{
+        let v =(p.0[0] - min) as f32;
+        let v = (v).div((max - min) as f32);
+        v
+    }).collect();*/
+    change
+
+
+
+}
+fn thres(non_max: &mut GrayImage){
+    let (width,height) = non_max.dimensions();
+    let width = width as usize;
+    let non = normalize(non_max);
+    let _ = non_max.enumerate_pixels_mut().into_iter().for_each(|(x,y,p)|{
+        //print!("({})",non[(y*x + x) as usize]);
+        //non[(y*x + x) as usize]
+        //*p = image::Luma([(non[(y*x + x) as usize] as u8 * 40)]);
+        if non[(x*y + y) as usize] > 0.7{
+            *p = image::Luma([(255)]);
+        }else if non[(y*x + x) as usize] < 0.3{
+            *p = image::Luma([(0)]);
+        }else{
+            *p = image::Luma([(125)]);
+        }
+    });
+
+    let e = vec![12,3,3];
+    // what is we use zip instead??
+    let v = non.par_chunks(width).zip(non_max.par_chunks_mut(width)).for_each(
+        |(vec,img)|
+            {
+            vec.iter().zip((*img).iter_mut()).for_each(
+                |(v1,m2)|{
+                    let v1 = *v1;
+                    if v1 > 0.7{
+                        *m2 = 255
+                    }else if v1 < 0.3{
+                        *m2 = 0
+                    }else{
+                        *m2 = 50
+                    }
+                }
+            )
+
+        }
+    );
+    /* 
+    non.par_chunks_mut(10).for_each(|p|{
+        //let d:Vec<u8>  = (*p).to_vec();
+        let fin:Vec<f32> = p.into_iter().for_each(|p2|{
+            let p3 = *p2;
+            if p3 > 0.7 {
+                *p2 = 255;
+            }else if p3 < 0.3{
+                *p2 = 0;
+            }else{
+                *p3 = 122;
+            }
+        }).collect();
+        fin
+    }).collect(); */
+    non_max.save("thres.png").unwrap();
+}
+
+
 
 fn main() {
     println!("Hello, world!");
@@ -213,6 +304,11 @@ fn main() {
     let (mut phase,mut sobel) = get_image("../brick-house.png");
     println!("{}",SOBEL_H[1][2]);
     non_max_sup(& mut sobel, & mut phase);
+    //let n = image::open("non_max2.png").unwrap().to_luma8();
+    //let n = normalize(&n);
+    //println!("{:?}",n)
+
+
 
     //non_max_sup(sobeled, phase)
 
