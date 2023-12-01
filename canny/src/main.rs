@@ -1,5 +1,5 @@
 
-use std::{ f32::consts::PI, ops::Div};
+use std::{ f32::consts::PI, ops::Div, cmp};
 
 use image::{GenericImageView, DynamicImage, GenericImage,ImageBuffer,Rgb, Rgb32FImage, GrayImage};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -15,7 +15,7 @@ const SOBEL_V:[[i16;3];3] = [[-1 , -2, -1], [0,0,0],[1,2,1]];
 const SOBEL_H:[[i16;3];3] = [[-1,0,1],[-2,0,2],[-1,0,1]];
 const ONE:i8 = -1;
 
-fn convol(img:&GrayImage, kernel:&[[i16;3]],x: u32,y:u32) -> u16{
+fn convol(img:&GrayImage, kernel:&[[i16;3]],x: u32,y:u32) -> i16{
     let y = y -1;
     let x1 = 1;
     let y1: usize = 0;
@@ -45,13 +45,14 @@ fn convol(img:&GrayImage, kernel:&[[i16;3]],x: u32,y:u32) -> u16{
     //println!("({:?})",a);
     let a:i16 =a.into_iter().sum();
     //println!("sum = ({:?})",a);
-    a.abs() as u16
+    //a.abs() as u16
+    a
 }
 
 /*const Quanz:f32 = PI.div(8f32);
 const Quanz2:f32 = PI.div(4f32);*/
 fn quantized(zeta: f32) -> u8 {
-    let thres = zeta.div(PI).round().div(45.0);
+    let thres = (zeta.div(PI)*180.0).round().div(45.0);
     if thres >= 0.0 {
         let degree: u8 = if zeta.div(PI).round().abs() % 45f32 < 22.5{
             0
@@ -102,7 +103,7 @@ fn quantized(zeta: f32) -> u8 {
     }else*/
 }
 
-fn get_image(dir: &str) -> GrayImage{
+fn get_image(dir: &str) -> (GrayImage, GrayImage){
     let img = image::open(dir).unwrap().to_luma8();
     println!("{:?}", img.dimensions());
     let (width,height) = img.dimensions();
@@ -115,11 +116,11 @@ fn get_image(dir: &str) -> GrayImage{
             let value = convol(&img, &SOBEL_H, x, y);
             let value2 = convol(&img, &SOBEL_V, x, y);
             //let ans: u8 = value.pow(2) + value2.pow(2);
-            let pyth: u8 = (((value + value2)*25)/100) as u8;
+            let pyth: u8 = (((value.abs() as u16 + value2.abs() as u16)*25)/100) as u8;
             let angle = fast_math::atan2(value as f32, value2 as f32);
             let angle = quantized(angle);
-            *ang_img.get_pixel_mut(x-1, y-1) = image::Luma([angle]);
-
+            //print!("({:})",angle);
+            *ang_img.get_pixel_mut(x-1, y-1) = image::Luma([angle*20]);
             *n_img.get_pixel_mut(x-1, y-1) = image::Luma([pyth]);
             //print!("({:?})",val);
 
@@ -149,11 +150,46 @@ fn get_image(dir: &str) -> GrayImage{
             println!("");
         }*/
     }*/
-    n_img.save("output3.png").unwrap();
-    ang_img
+    n_img.save("output.png").unwrap();
+    ang_img.save("phase.png").unwrap();
+    (ang_img, n_img)
 }
 
+fn non_max_sup(sobeled: &mut GrayImage, phase: &mut GrayImage){
+    fn pix(x:u32,y:u32, sobeled: &GrayImage) -> u8 {
+        sobeled.get_pixel(x, y).0[0]
+    }
+    let (width,height) = sobeled.dimensions();
+    for x in 1..width-1{
+        for y in 1..height-1{
+            let angle = phase.get_pixel(x, y).0[0]/20;
+            let h = pix(x-1, y, sobeled) <= pix(x, y, sobeled) && pix(x, y, sobeled) >= pix(x+1, y, sobeled);
+            let dia_1 = pix(x-1, y-1, sobeled) <= pix(x, y, sobeled) && pix(x, y, sobeled) >= pix(x+1, y+1, sobeled);
+            let dia_3 = pix(x-1, y+1, sobeled) <= pix(x, y, sobeled) && pix(x, y, sobeled) >= pix(x+1, y-1, sobeled);
+            let v = pix(x, y+1, sobeled) <= pix(x, y, sobeled) && pix(x, y, sobeled) >= pix(x, y-1, sobeled);
+            
+            match angle{
+                0 =>   if h == false{
+                    *sobeled.get_pixel_mut(x, y) = image::Luma([0]);
+                },
+                1 =>if dia_1 == false{
+                    *sobeled.get_pixel_mut(x, y) = image::Luma([0]);
+                },
+                2=>if dia_3 == false{
+                    *sobeled.get_pixel_mut(x, y) = image::Luma([0]);
+                },
+                3=>if v == false{
+                    *sobeled.get_pixel_mut(x, y) = image::Luma([0]);
+                },
+                _=> panic!(),
+            }
 
+
+        }
+    }
+    sobeled.save("non_max2.png").unwrap();
+
+}
 
 fn main() {
     println!("Hello, world!");
@@ -174,8 +210,11 @@ fn main() {
     //println!("{:?}",img);
     //get_image("../sample.jpg");*/
     
-    let angle = get_image("sample.png");
-    angle.save("phase").unwrap();
+    let (mut phase,mut sobel) = get_image("../brick-house.png");
     println!("{}",SOBEL_H[1][2]);
+    non_max_sup(& mut sobel, & mut phase);
+
+    //non_max_sup(sobeled, phase)
+
 
 }
