@@ -14,6 +14,97 @@ fn get_str_ascii(intent :u8)-> &'static str{
 const SOBEL_V:[[i16;3];3] = [[-1 , -2, -1], [0,0,0],[1,2,1]];
 const SOBEL_H:[[i16;3];3] = [[-1,0,1],[-2,0,2],[-1,0,1]];
 const ONE:i8 = -1;
+const GUSS:[i16;5] = [1,4,6,4,1];
+const GUSS2:[[i32;5];5] = [[1,4,6,4,1],[4,16,24,16,4],[6,24,32,24,6],[4,16,24,16,4],[1,4,6,4,1]];
+
+fn gussian(img:&mut GrayImage) -> GrayImage{
+    let (width,height) = img.dimensions();
+    let size =  ((width-2)*(height-2)) as usize;
+    let mut n_img: GrayImage = ImageBuffer::new(width-4,height-4);
+    //let mut gus_v: Vec<f32> = Vec::with_capacity(size);
+    for x in 2..width-2{
+        for y in 2..height-2{
+            
+            let value = (convol1D_5(img, &GUSS, x, y, 0) as f32).div(16f32);
+            *img.get_pixel_mut(x, y) = image::Luma([value as u8]);
+            
+            // match gus_v.get_mut((y*width + x) as usize){
+            //     Some(ele) => *ele = value,
+            //     None => panic!(),
+            // }
+            
+        }
+    }
+    for x in 2..width-2{
+        for y in 2..height-2{
+            
+            let value = (convol1D_5(img, &GUSS, x, y, 1) as f32).div(16f32);
+            *img.get_pixel_mut(x, y) = image::Luma([value as u8]);
+            
+            // match gus_v.get_mut((y*width + x) as usize){
+            //     Some(ele) => *ele = value,
+            //     None => panic!(),
+            // }
+            
+        }
+    }
+    for x in 2..width-2{
+        for y in 2..height-2{
+            // if  ((x <=1) || (y <= 1)) || ((x >= (width-2)) || (y >= height -2)){
+            //     *n_img.get_pixel_mut(x, y) = image::Luma([0 as u8]);
+            //     println!("{}{}",x,y);
+            // }
+            *n_img.get_pixel_mut(x-2, y-2) = *img.get_pixel(x, y);
+        }
+
+    }
+    
+    n_img.save("guss.png").unwrap();
+    n_img
+
+}
+
+fn convol2D_5(img:&mut GrayImage, kernel:&[[i32;5];5]){
+    let (width,height) = img.dimensions();
+    let mut n_img: GrayImage = ImageBuffer::new(width,height);
+    n_img.enumerate_pixels_mut().into_iter().for_each(|p|{
+        let mut sum: i32 = 0;
+        if (p.0 >=2 && p.0 < width-2) && ( p.1 >=2 && p.1 < height-2){
+            for x1 in 0..5{
+                for y1 in 0..5{
+                    //let v = p.2[0];
+                    sum += img.get_pixel(p.0 -2 + x1, p.1 -2 + y1).0[0] as i32 * kernel[x1 as usize][y1 as usize];
+            }
+            *p.2 = image::Luma([(sum as f32).div(256f32) as u8]);
+        }
+            
+        }
+    });
+    let n_img = n_img.sub_image(2, 2, width-4, height-4).to_image();
+    n_img.save("guss2.png").unwrap();
+
+}
+
+fn convol1D_5(img:&GrayImage, kernel:&[i16;5],x:u32,y:u32,xy:u8) -> i16{
+    if xy == 0{
+        let a1_1 = img.get_pixel(x, y).0[0] as i16 * kernel[2];
+        let a1_2 = img.get_pixel(x-1, y).0[0] as i16 * kernel[1];
+        let a1_3 = img.get_pixel(x+1, y).0[0] as i16 * kernel[3];
+        let a1_4 = img.get_pixel(x-2, y).0[0] as i16 * kernel[0];
+        let a1_5 = img.get_pixel(x+2, y).0[0] as i16 * kernel[4];
+        let s = a1_1 + a1_2 + a1_3 + a1_4 + a1_5;
+        s
+
+    }else{
+        let a1_1 = img.get_pixel(x, y).0[0] as i16 * kernel[2];
+        let a1_2 = img.get_pixel(x, y-1).0[0] as i16 * kernel[1];
+        let a1_3 = img.get_pixel(x, y+1).0[0] as i16 * kernel[3];
+        let a1_4 = img.get_pixel(x, y-2).0[0] as i16 * kernel[0];
+        let a1_5 = img.get_pixel(x, y+2).0[0] as i16 * kernel[4];
+        let s = a1_1 + a1_2 + a1_3 + a1_4 + a1_5;
+        s
+    }
+}
 
 fn convol(img:&GrayImage, kernel:&[[i16;3]],x: u32,y:u32) -> i16{
     let y = y -1;
@@ -48,6 +139,8 @@ fn convol(img:&GrayImage, kernel:&[[i16;3]],x: u32,y:u32) -> i16{
     //a.abs() as u16
     a
 }
+
+
 
 /*const Quanz:f32 = PI.div(8f32);
 const Quanz2:f32 = PI.div(4f32);*/
@@ -104,9 +197,12 @@ fn quantized(zeta: f32) -> u8 {
 }
 
 fn get_image(dir: &str) -> (GrayImage, GrayImage){
-    let img = image::open(dir).unwrap().to_luma8();
+    let mut img = image::open(dir).unwrap().to_luma8();
+    convol2D_5(&mut img, &GUSS2);
+    let img = gussian(&mut img);
     println!("{:?}", img.dimensions());
     let (width,height) = img.dimensions();
+    //gussian(&mut img);
     let mut n_img: GrayImage = ImageBuffer::new(width-2,height-2);
     let mut ang_img: GrayImage = ImageBuffer::new(width-2,height-2);
     for x in 1..width-1{
@@ -156,6 +252,9 @@ fn get_image(dir: &str) -> (GrayImage, GrayImage){
 }
 
 fn non_max_sup(sobeled: &mut GrayImage, phase: &mut GrayImage){
+    let (width,height) = sobeled.dimensions();
+    //let mut sobeled2: GrayImage = ImageBuffer::new(width, height);
+    //let sobeled = &mut sobeled;
     fn pix(x:u32,y:u32, sobeled: &GrayImage) -> u8 {
         sobeled.get_pixel(x, y).0[0]
     }
@@ -171,16 +270,24 @@ fn non_max_sup(sobeled: &mut GrayImage, phase: &mut GrayImage){
             match angle{
                 0 =>   if h == false{
                     *sobeled.get_pixel_mut(x, y) = image::Luma([0]);
-                },
+                }/*else{
+                    *sobeled.get_pixel_mut(x, y) = *sobeled.get_pixel(x, y);
+                }*/,
                 1 =>if dia_1 == false{
                     *sobeled.get_pixel_mut(x, y) = image::Luma([0]);
-                },
+                }/*else{
+                    *sobeled.get_pixel_mut(x, y) = *sobeled.get_pixel(x, y);
+                }*/,
                 2=>if dia_3 == false{
                     *sobeled.get_pixel_mut(x, y) = image::Luma([0]);
-                },
+                }/*else{
+                    *sobeled.get_pixel_mut(x, y) = *sobeled.get_pixel(x, y);
+                }*/,
                 3=>if v == false{
                     *sobeled.get_pixel_mut(x, y) = image::Luma([0]);
-                },
+                }/*else{
+                    *sobeled.get_pixel_mut(x, y) = *sobeled.get_pixel(x, y);
+                }*/,
                 _=> panic!(),
             }
 
@@ -188,11 +295,13 @@ fn non_max_sup(sobeled: &mut GrayImage, phase: &mut GrayImage){
         }
     }
     sobeled.save("non_max2.png").unwrap();
+    hyst(sobeled);
     //let so = sobeled;
     let non_max = normalize(sobeled);
     //println!("{:?}",non_max);
     //println!("NEW");
     thres(sobeled);
+    hyst(sobeled);
 
 }
 
@@ -206,7 +315,8 @@ fn normalize(sobel: & GrayImage) -> Vec<f32>{
     let min = sobel.par_iter().map(|p| *p).min().unwrap();
     let max = sobel.par_iter().map(|p| *p).max().unwrap();
     //println!("min ={}", min);
-    let change: Vec<f32>= sobel.par_chunks(10).flat_map(|p|{
+    let (width,height) = sobel.dimensions();
+    let change: Vec<f32>= sobel.par_chunks(width as usize).flat_map(|p|{
             //let d:Vec<u8>  = (*p).to_vec();
             let fin:Vec<f32> = p.into_iter().map(|p2|{
                 let v = (*p2 - min) as f32;
@@ -229,18 +339,22 @@ fn thres(non_max: &mut GrayImage){
     let (width,height) = non_max.dimensions();
     let width = width as usize;
     let non = normalize(non_max);
-    let _ = non_max.enumerate_pixels_mut().into_iter().for_each(|(x,y,p)|{
-        //print!("({})",non[(y*x + x) as usize]);
-        //non[(y*x + x) as usize]
-        //*p = image::Luma([(non[(y*x + x) as usize] as u8 * 40)]);
-        if non[(x*y + y) as usize] > 0.7{
-            *p = image::Luma([(255)]);
-        }else if non[(y*x + x) as usize] < 0.3{
-            *p = image::Luma([(0)]);
-        }else{
-            *p = image::Luma([(125)]);
-        }
-    });
+
+    /* */
+    // let _ = non_max.enumerate_pixels_mut().into_iter().for_each(|(x,y,p)|{
+    //     //print!("({})",non[(y*x + x) as usize]);
+    //     //non[(y*x + x) as usize]
+    //     //*p = image::Luma([(non[(y*x + x) as usize] as u8 * 40)]);
+    //     if non[(x*y + y) as usize] > 0.7{
+    //         *p = image::Luma([(255)]);
+    //     }else if non[(y*x + x) as usize] < 0.3{
+    //         *p = image::Luma([(0)]);
+    //     }else{
+    //         *p = image::Luma([(125)]);
+    //     }
+    // });
+
+    /* */
 
     let e = vec![12,3,3];
     // what is we use zip instead??
@@ -278,6 +392,38 @@ fn thres(non_max: &mut GrayImage){
         fin
     }).collect(); */
     non_max.save("thres.png").unwrap();
+}
+
+fn hyst(thres: &mut GrayImage){
+    let (width,height) = thres.dimensions();
+    let mut n_img: GrayImage = ImageBuffer::new(width,height);
+    for x in 1..width-1{
+        for y in 1..height-1{
+            let y1 =y;
+            let y = y -1;
+            let a1_1 = thres.get_pixel(x-1, y).0[0];
+            let a2_1 = thres.get_pixel(x, y).0[0];
+            let a3_1 = thres.get_pixel(x+1, y).0[0];
+            let y = y +1;
+            let a1_2 = thres.get_pixel(x-1, y).0[0];
+            let a2_2 = thres.get_pixel(x, y).0[0];
+            let a3_2 = thres.get_pixel(x+1, y).0[0];
+            let y= y +1;
+            let a1_3 = thres.get_pixel(x-1, y).0[0];
+            let a2_3 = thres.get_pixel(x, y).0[0];
+            let a3_3 = thres.get_pixel(x+1, y).0[0];
+            let a = vec![a1_1,a2_1,a3_1,a1_2,a3_2,a1_3,a2_3,a3_3];
+            let a:Vec<u8> = a.iter().map(|f| *f).filter(|p| *p >= 50).collect();
+            if a.len() >= 1 && (a2_2 == 50 || a2_2 == 255) {
+                *n_img.get_pixel_mut(x, y1) = image::Luma([255]);
+            }else{
+                *n_img.get_pixel_mut(x, y1) = image::Luma([0]);
+            }
+
+        }
+    }
+    n_img.save("hyst4.png").unwrap();
+
 }
 
 
