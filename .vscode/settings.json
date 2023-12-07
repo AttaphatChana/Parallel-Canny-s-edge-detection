@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./canny2/Cargo.toml",
+        "./canny2/Cargo.toml"
+    ]
+}

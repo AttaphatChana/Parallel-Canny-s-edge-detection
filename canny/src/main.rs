@@ -295,7 +295,7 @@ fn non_max_sup(sobeled: &mut GrayImage, phase: &mut GrayImage){
         }
     }
     sobeled.save("non_max2.png").unwrap();
-    hyst(sobeled);
+    //hyst(sobeled);
     //let so = sobeled;
     let non_max = normalize(sobeled);
     //println!("{:?}",non_max);
@@ -366,7 +366,7 @@ fn thres(non_max: &mut GrayImage){
                     let v1 = *v1;
                     if v1 > 0.7{
                         *m2 = 255
-                    }else if v1 < 0.3{
+                    }else if v1 < 0.25{
                         *m2 = 0
                     }else{
                         *m2 = 50

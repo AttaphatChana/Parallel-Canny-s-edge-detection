@@ -1,0 +1,1 @@
+/Users/attaphatchana/Desktop/Rust\ Project/Parallel-Canny-s-edge-detection/canny/target/debug/par_nonsep: /Users/attaphatchana/Desktop/Rust\ Project/Parallel-Canny-s-edge-detection/canny/src/bin/par_nonsep.rs
